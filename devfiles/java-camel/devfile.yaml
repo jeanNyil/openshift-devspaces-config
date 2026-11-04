@@ -1,0 +1,63 @@
+schemaVersion: 2.3.0
+metadata:
+  name: java-camel
+  displayName: Java 21 and Apache Camel
+  description: Shared Dev Spaces environment with the extended UDI, Camel CLI setup, and agent-home synchronization for OpenCode.
+components:
+  - name: tools
+    container:
+      image: quay.io/jnyilimbibi/devspaces-extended-udi:3.31
+      env:
+        # Proxy + user.home for all JVMs (JBang/Camel/Maven). Nested-container
+        # workspaces run as userns uid 0, so the JVM default user.home=/root
+        # while HOME=/home/user; /root is not writable.
+        # Reference: https://www.jbang.dev/documentation/guide/latest/configuration.html#proxy-configuration
+        - name: JAVA_TOOL_OPTIONS
+          value: "-Djava.net.useSystemProxies=true -Duser.home=/home/user"
+        # UDI entrypoint selects the default JDK via env vars (first match wins):
+        #   USE_JAVA8=true  -> Java 8
+        #   USE_JAVA11=true -> Java 11
+        #   USE_JAVA21=true -> Java 21
+        #   (none set)      -> Java 17 (default)
+        - name: USE_JAVA21
+          value: "true"
+        - name: XDG_CONFIG_HOME
+          value: /home/user/.config
+        - name: XDG_DATA_HOME
+          value: /home/user/.local/share
+      memoryRequest: 8Gi
+      memoryLimit: 8Gi
+      cpuLimit: 4000m
+      cpuRequest: 100m
+      mountSources: true
+commands:
+  - id: install-camel-cli-and-k8s-plugin
+    exec:
+      label: "Install Apache Camel JBang and Kubernetes plugin"
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: |
+        # Absolute path: the image ENV PATH includes /home/tooling/.local/bin,
+        # but Dev Spaces / kubelet postStart exec may not inherit it.
+        /home/tooling/.local/bin/jbang trust add -o https://github.com/apache
+        /home/tooling/.local/bin/jbang app install --verbose --name=camel /home/tooling/CamelJBang.java
+        mkdir -p "${HOME}/.local/bin"
+        ln -sfn "${HOME}/.jbang/bin/camel" "${HOME}/.local/bin/camel"
+        "${HOME}/.jbang/bin/camel" plugin add kubernetes
+  - id: sync-agent-home
+    exec:
+      label: Sync agent-home (OpenCode config, rules, skills)
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: |
+        set -e
+        if [ ! -d "$HOME/myGit/agent-home/.git" ]; then
+          git clone https://github.com/jeanNyil/agent-home.git "$HOME/myGit/agent-home"
+        else
+          git -C "$HOME/myGit/agent-home" pull --ff-only
+        fi
+        "$HOME/myGit/agent-home/bootstrap.sh"
+events:
+  postStart:
+    - install-camel-cli-and-k8s-plugin
+    - sync-agent-home
