@@ -25,6 +25,12 @@ components:
           value: /home/user/.config
         - name: XDG_DATA_HOME
           value: /home/user/.local/share
+        # Restore UDI tool directories; keep local binaries ahead of system ones.
+        # AI injection prepends its own directory to this literal PATH.
+        # Refresh on UDI upgrades; see
+        # ../../README.md#ai-injection-and-tooling-path
+        - name: PATH
+          value: "/home/tooling/.local/bin:/home/user/.local/bin:/home/user/.java/current/bin:/home/user/node_modules/.bin:/home/user/.npm-global/bin:/opt/app-root/src/.npm-global/bin:/usr/share/maven/bin:/home/user/go/bin:/home/tooling/.java/current/bin:/home/tooling/node_modules/.bin:/home/tooling/.npm-global/bin:/home/tooling/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
       memoryRequest: 8Gi
       memoryLimit: 8Gi
       cpuLimit: 4000m
