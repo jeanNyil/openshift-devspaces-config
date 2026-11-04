@@ -62,10 +62,11 @@ Give them unique IDs and use `exec.component: tools` to run them in the inherite
 container. For project-relative commands, use `workingDir: ${PROJECT_SOURCE}`.
 Do not duplicate the inherited components or startup bindings.
 
-## Override resources in a child
+## Override resources and environment variables in a child
 
-The parent's defaults are 8Gi memory and a 4-CPU limit. A project that needs
-different resources can override the inherited container under `parent`:
+The parent's defaults are 8Gi memory, a 4-CPU limit, and Java 21. This example
+overrides the inherited container under `parent` with smaller resources and
+selects Java 17:
 
 ```yaml
 schemaVersion: 2.3.0
@@ -80,34 +81,20 @@ parent:
         memoryLimit: 4Gi
         cpuRequest: 100m
         cpuLimit: 2000m
+        env:
+          - name: USE_JAVA21
+            value: "false"
 ```
 
 Put overrides under `parent.components`; defining another top-level `tools`
-component would duplicate the inherited component. The remaining parent
-settings are retained. See the
+component would duplicate the inherited component. Environment entries merge
+by name, so this replaces the inherited `USE_JAVA21: "true"` value. Other
+inherited environment settings, including `JAVA_TOOL_OPTIONS` and the XDG paths,
+and both postStart bindings are retained. See the
 [Devfile API reference](https://devfile.io/docs/2.3.0/devfile-schema).
 
-## Maintain and upgrade
-
-The local checkout is `~/myGit/openshift-devspaces-config`, with `main` as its
-shared branch. Edit the parent and README together when behavior changes.
-Preserve the command IDs, `tools` container name, environment settings, and
-startup order unless intentionally changing the interface for consumers.
-
-Before publishing an update, validate the parent and a representative child
-with the official [Devfile library](https://devfile.io/docs/2.3.0/library).
-Resolve inheritance and inspect the resulting components, resource values,
-commands, and lifecycle bindings; a YAML syntax check alone does not validate
-the inherited result.
-
-Commit using a scoped Conventional Commit and push normally. Obtain the new
-commit using `git rev-parse HEAD`, then update each consuming project's pinned
-URI in a separate reviewed change. Existing pinned children keep their previous
-configuration until their URI changes. Smoke-test workspace startup when
-adopting an update and confirm both postStart commands complete.
-
-This repository is maintained alongside the private `jeanNyil/my-openshift-lab`
-repository, which owns cluster manifests, injector builds, and the lab's child
-devfile. The parent's own image tag remains independent of the OpenCode injector
-tag; update the relevant image build, registry, and cache configuration together
-when upgrading either image.
+The current `3.31` image checks `USE_JAVA8`, `USE_JAVA11`, and `USE_JAVA21`; it
+does not consume `USE_JAVA17`. Java 17 is the fallback when none of those
+selectors is `"true"`. With no Java 8 or Java 11 selector enabled, overriding
+`USE_JAVA21` to `"false"` selects Java 17. After starting or restarting a workspace
+with this child, verify the selected JDK with `java -version`.
